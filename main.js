@@ -3,9 +3,9 @@ var fs = require('fs');
 var url = require('url');
 var qs = require('querystring');
 
-function templateHTML(title, list, body, control) {
-  return `
-  <!doctype html>
+var templete = {
+  HTML : function(title, list, body, control) {
+  return ` <!doctype html>
           <html>
           <head>
             <title>WEB1 - ${title}</title>
@@ -17,21 +17,18 @@ function templateHTML(title, list, body, control) {
             ${control}
             <p> ${body} </p>
           </body>
-          </html>
-  `
-}
-function templateList(filelist) {
+          </html> `
+  },
+  List :function (filelist) {
   var list = '<ul>';
   for (var i of filelist) {
     list = list + `<li><a href="/?id=${i}">${i}</a></li>`;
-    console.log(i);
   }
   list = list + '</ul>';
-  console.log(filelist);
-  console.log(list);
-  return list;
-
+  return list; 
+  }
 }
+
 
 var app = http.createServer(function (request, response) {
   var _url = request.url;
@@ -44,32 +41,36 @@ var app = http.createServer(function (request, response) {
       fs.readdir('./data', function (err, filelist) {
         var title = 'Welcome';
         var description = 'Hello node.js';
-        var list = templateList(filelist);
-        var templete = templateHTML(title, list,
+        var list = templete.List(filelist);
+        var html = templete.HTML(title, list,
           `<h2>${title}</h2>${description}`,
           `<a href="/create">create</a>`);
         response.writeHead(200);
-        response.end(templete);
+        response.end(html);
       });
     } else {
       fs.readdir('./data', function (err, filelist) {
         fs.readFile(`./data/${queryData.id}`, function (err, data) {
-          var list = templateList(filelist);
+          var list = templete.List(filelist);
           var description = data;
-          var templete = templateHTML(title, list,
+          var html = templete.HTML(title, list,
             `<h2>${title}</h2>${description}`,
-            `<a href="/create">create</a> <a href="/update?id=${title}">update</a>`
+            `<a href="/create">create</a> <a href="/update?id=${title}">update</a>
+            <form action="/delete_process" method="post">
+              <input type="hidden" name="id" value="${title}">
+              <input type="submit" value="delete"> 
+            </form>`
           );
           response.writeHead(200);
-          response.end(templete);
+          response.end(html);
         });
       });
     }
   } else if (pathName === '/create') {
     fs.readdir('./data', function (err, filelist) {
       var title = 'Welcome';
-      var list = templateList(filelist);
-      var templete = templateHTML(title, list, `
+      var list = templete.List(filelist);
+      var html = templete.HTML(title, list, `
       <form action="http://localhost:3000/create_process" method="POST">
         <p>
           <input type="text" name ="title" placeholder="title">
@@ -83,7 +84,7 @@ var app = http.createServer(function (request, response) {
       </form>
           `, ''); //공백문자의 뜻은 undefined가 나오기 때문에 
       response.writeHead(200);
-      response.end(templete);
+      response.end(html);
     });
 
   } else if (pathName === '/create_process') {
@@ -108,9 +109,9 @@ var app = http.createServer(function (request, response) {
   } else if (pathName === "/update") {
     fs.readdir('./data', function (err, filelist) {
       fs.readFile(`./data/${queryData.id}`, function (err, data) {
-        var list = templateList(filelist);
+        var list = templete.List(filelist);
         var description = data;
-        var templete = templateHTML(title, list,
+        var html = templete.HTML(title, list,
           `
         <form action="http://localhost:3000/update_process" method="POST">
 
@@ -130,7 +131,7 @@ var app = http.createServer(function (request, response) {
         `<a href="/create">create</a>`
         );
         response.writeHead(200);
-        response.end(templete);
+        response.end(html);
       });
     });
   }else if(pathName ==='/update_process'){
@@ -145,7 +146,6 @@ var app = http.createServer(function (request, response) {
       var title = post.title;
       var description = post.description;
       var id = post.id;
-      console.log(post);
       fs.rename(`./data/${id}`,`./data/${title}`,function(err){//아하 이동할수도있구나 ?~
         fs.writeFile(`./data/${title}`, description, 'utf8', function (err) {
           response.writeHead(302, { Location: `/?id=${title}` });
@@ -153,6 +153,25 @@ var app = http.createServer(function (request, response) {
         });
       })
     });
+  }else if(pathName ==='/delete_process'){
+    var body = '';
+
+    request.on('data', function (data) {
+      body += data;
+    });
+
+    request.on('end', function () {
+      var post = qs.parse(body);
+      var title = post.title;
+      var id = post.id;
+      console.log(post);
+      console.log(post.id);
+      fs.unlink(`./data/${id}`,function(err){
+          response.writeHead(302, { Location: `/` });
+          response.end('delete');
+      });
+    });
+
   } else {
     response.writeHead(404);
     response.end('Not found');
