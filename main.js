@@ -2,33 +2,10 @@ var http = require('http');
 var fs = require('fs');
 var url = require('url');
 var qs = require('querystring');
-
-var templete = {
-  HTML : function(title, list, body, control) {
-  return ` <!doctype html>
-          <html>
-          <head>
-            <title>WEB1 - ${title}</title>
-            <meta charset="utf-8">
-          </head>
-          <body>
-            <h1><a href="/">WEB</a></h1>
-            ${list}
-            ${control}
-            <p> ${body} </p>
-          </body>
-          </html> `
-  },
-  List :function (filelist) {
-  var list = '<ul>';
-  for (var i of filelist) {
-    list = list + `<li><a href="/?id=${i}">${i}</a></li>`;
-  }
-  list = list + '</ul>';
-  return list; 
-  }
-}
-
+// templete 가져오기
+var templete = require('./lib/templete.js')
+var path = require('path');
+var sanitizeHtml = require('sanitize-html');
 
 var app = http.createServer(function (request, response) {
   var _url = request.url;
@@ -41,6 +18,7 @@ var app = http.createServer(function (request, response) {
       fs.readdir('./data', function (err, filelist) {
         var title = 'Welcome';
         var description = 'Hello node.js';
+        
         var list = templete.List(filelist);
         var html = templete.HTML(title, list,
           `<h2>${title}</h2>${description}`,
@@ -50,14 +28,20 @@ var app = http.createServer(function (request, response) {
       });
     } else {
       fs.readdir('./data', function (err, filelist) {
-        fs.readFile(`./data/${queryData.id}`, function (err, data) {
-          var list = templete.List(filelist);
+        var filteredID = path.parse(queryData.id).base;
+        fs.readFile(`./data/${filteredID}`, function (err, data) {
+          var title = queryData.id;
           var description = data;
+          var sanitizeTitle = sanitizeHtml(title);
+          var sanitizeDescription = sanitizeHtml(data,{
+            allowedTags : ['h1']
+          });
+          var list = templete.List(filelist);
           var html = templete.HTML(title, list,
-            `<h2>${title}</h2>${description}`,
-            `<a href="/create">create</a> <a href="/update?id=${title}">update</a>
+            `<h2>${sanitizeTitle}</h2>${sanitizeDescription}`,
+            `<a href="/create">create</a> <a href="/update?id=${sanitizeTitle}">update</a>
             <form action="/delete_process" method="post">
-              <input type="hidden" name="id" value="${title}">
+              <input type="hidden" name="id" value="${sanitizeTitle}">
               <input type="submit" value="delete"> 
             </form>`
           );
@@ -108,7 +92,8 @@ var app = http.createServer(function (request, response) {
     });
   } else if (pathName === "/update") {
     fs.readdir('./data', function (err, filelist) {
-      fs.readFile(`./data/${queryData.id}`, function (err, data) {
+      var filteredID = path.parse(queryData.id).base;
+      fs.readFile(`./data/${filteredID}`, function (err, data) {
         var list = templete.List(filelist);
         var description = data;
         var html = templete.HTML(title, list,
@@ -164,9 +149,8 @@ var app = http.createServer(function (request, response) {
       var post = qs.parse(body);
       var title = post.title;
       var id = post.id;
-      console.log(post);
-      console.log(post.id);
-      fs.unlink(`./data/${id}`,function(err){
+      var filteredId = path.parse(post.id).base;
+      fs.unlink(`./data/${filteredId}`,function(err){
           response.writeHead(302, { Location: `/` });
           response.end('delete');
       });

@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "mysql": "^2.18.1",
+    "sanitize-html": "^2.3.3"
+  }
+}
